@@ -1,0 +1,1 @@
+"""Media inspection capability tests."""
