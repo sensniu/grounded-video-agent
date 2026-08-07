@@ -45,6 +45,53 @@ The pipeline registers media inspection, shots, transcript/ASR output, transcrip
 chunks, and the BM25 transcript index in the per-video artifact catalog. OCR, frame sampling,
 VLM analysis, and clip export remain on-demand operations outside this pipeline.
 
+## Call DeepSeek
+
+The asynchronous LLM interface is framework-neutral and does not execute video tools. Copy the
+local environment template and fill in the API key before calling the DeepSeek OpenAI-compatible
+endpoint:
+
+```bash
+cp .env.example .env
+# Edit .env and set DEEPSEEK_API_KEY.
+```
+
+```python
+import asyncio
+
+from dotenv import load_dotenv
+
+from grounded_video_agent.infrastructure.llm import (
+    DeepSeekLLMBackend,
+    LLMMessage,
+    LLMRequest,
+    LLMRole,
+)
+
+load_dotenv()
+
+
+async def main() -> None:
+    backend = DeepSeekLLMBackend()
+    response = await backend.complete(
+        LLMRequest(
+            operation_id="question-1",
+            messages=(LLMMessage(LLMRole.USER, "Summarize the supplied evidence."),),
+        )
+    )
+    print(response.content)
+
+
+asyncio.run(main())
+```
+
+Model name, endpoint, timeouts, retries, and generation defaults can be changed with
+`DeepSeekBackendConfig`. JSON-object output additionally requires a `StructuredOutputSpec`;
+the future Agent layer remains responsible for decoding that object into an Agent-specific
+decision type. A paid API smoke test is opt-in with
+`RUN_DEEPSEEK_INTEGRATION=1` in `.env`, followed by
+`python -m pytest tests/integration/test_real_deepseek_llm.py`.
+
 ## Use the video tools
 
 The tool layer is framework-neutral. The framework injects the current `video_id`, catalog,
