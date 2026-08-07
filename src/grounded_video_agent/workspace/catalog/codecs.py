@@ -21,6 +21,7 @@ from grounded_video_agent.workspace.catalog.contracts import CatalogDocumentKind
 from grounded_video_agent.workspace.catalog.documents import (
     AudioAssetDocument,
     MediaInspectionDocument,
+    VideoClipDocument,
 )
 
 T = TypeVar("T")
@@ -40,6 +41,7 @@ _TYPES_BY_KIND = {kind: manifest_type for manifest_type, kind in _MANIFEST_TYPES
 _DOCUMENT_TYPES: dict[type[Any], CatalogDocumentKind] = {
     MediaInspectionDocument: CatalogDocumentKind.MEDIA_INSPECTION,
     AudioAssetDocument: CatalogDocumentKind.AUDIO_ASSET,
+    VideoClipDocument: CatalogDocumentKind.VIDEO_CLIP,
 }
 _DOCUMENT_TYPES_BY_KIND = {
     kind: document_type for document_type, kind in _DOCUMENT_TYPES.items()

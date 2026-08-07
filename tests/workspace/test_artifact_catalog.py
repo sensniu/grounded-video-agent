@@ -35,6 +35,7 @@ from grounded_video_agent.domain import (
     TranscriptSource,
     ValidationReport,
     VideoAsset,
+    VideoClipArtifact,
     VideoStreamInfo,
 )
 from grounded_video_agent.workspace.catalog import (
@@ -49,10 +50,12 @@ from grounded_video_agent.workspace.catalog import (
     CatalogKey,
     CatalogRegistration,
     CatalogResourceType,
+    DocumentCodecRegistry,
     FilesystemArtifactCatalog,
     MediaInspectionDocument,
     MediaInspectionNextAction,
     PrimaryStreamSelection,
+    VideoClipDocument,
 )
 
 VIDEO_ID = "video_catalog_test"
@@ -142,6 +145,69 @@ def _index_key() -> CatalogKey:
         modality=IndexModality.TRANSCRIPT,
         index_kind=IndexKind.BM25,
     )
+
+
+def _video_clip_key() -> CatalogKey:
+    return CatalogKey(
+        CatalogResourceType.DOCUMENT,
+        variant="evidence_test",
+        document_kind=CatalogDocumentKind.VIDEO_CLIP,
+    )
+
+
+def test_catalog_loads_typed_video_clip_document(tmp_path: Path) -> None:
+    catalog, _, artifact_root, asset = _setup(tmp_path)
+    snapshot = catalog.create_video(asset)
+    source_entry = snapshot.entries[0]
+    clip_path = artifact_root / "clips" / VIDEO_ID / "evidence.mp4"
+    clip_path.parent.mkdir(parents=True)
+    clip_path.write_bytes(b"clip")
+    provenance = Provenance(
+        ProducerInfo("test-clip", "1"),
+        hashlib.sha256(b"clip-parameters").hexdigest(),
+        VIDEO_ID,
+        (asset.source.artifact_id,),
+    )
+    clip_id = "evidence-clip"
+    source_range = TimeRange(100, 900)
+    clip = VideoClipArtifact(
+        clip_id,
+        VIDEO_ID,
+        ArtifactRef(
+            "evidence-clip-artifact",
+            ArtifactKind.VIDEO_CLIP,
+            str(clip_path),
+            _digest(clip_path),
+            clip_path.stat().st_size,
+            provenance,
+        ),
+        source_range,
+        source_range,
+        TimelineMapping(VIDEO_ID, source_range, clip_id, TimeRange(0, 800)),
+        includes_audio=True,
+    )
+    ref = _document_ref(
+        artifact_root,
+        "clip-document",
+        CatalogDocumentKind.VIDEO_CLIP,
+    )
+    document = VideoClipDocument(ref, clip, ("evidence-1",))
+    DocumentCodecRegistry().dump(ref.artifact.uri, document)
+    derivation_key = provenance.parameters_hash
+    catalog.register(
+        VIDEO_ID,
+        CatalogRegistration(
+            _video_clip_key(),
+            ref,
+            "clip-operation",
+            (source_entry.entry_id,),
+            derivation_key=derivation_key,
+        ),
+    )
+
+    loaded = catalog.load_document(VIDEO_ID, _video_clip_key(), VideoClipDocument)
+    assert loaded == document
+    assert catalog.audit(VIDEO_ID, deep=True).is_valid
 
 
 def _document_ref(

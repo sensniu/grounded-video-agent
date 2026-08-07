@@ -17,7 +17,6 @@ python -m pip install rapidocr==3.9.2 onnxruntime==1.28.0
 python -m pip install langgraph==1.2.10 pydantic pydantic-settings python-dotenv tenacity httpx orjson
 python -m pip install "fastapi[standard]==0.141.1" gradio==6.22.0 aiofiles
 python -m pip install pytest==9.1.1 pytest-asyncio ruff mypy pre-commit
-python -m pip install rapidocr onnxruntime
 python -m pip install -e .
 ```
 
@@ -45,3 +44,44 @@ print(result.to_json())
 The pipeline registers media inspection, shots, transcript/ASR output, transcript-driven
 chunks, and the BM25 transcript index in the per-video artifact catalog. OCR, frame sampling,
 VLM analysis, and clip export remain on-demand operations outside this pipeline.
+
+## Use the video tools
+
+The tool layer is framework-neutral. The framework injects the current `video_id`, catalog,
+trace, budgets, and evidence memory through `ToolRuntimeContext`; these values are not exposed
+as LLM arguments.
+
+```python
+from grounded_video_agent.agent.tools import ToolRuntimeContext, build_video_tool_suite
+from grounded_video_agent.pipelines import build_local_preprocessing_pipeline
+from grounded_video_agent.workspace.catalog import FilesystemArtifactCatalog
+
+preprocessing_result = build_local_preprocessing_pipeline().run("video.mp4")
+assert preprocessing_result.video_id is not None
+catalog = FilesystemArtifactCatalog(
+    "artifacts/catalog",
+    artifact_root="artifacts",
+    input_roots=("analyzed_video",),
+)
+runtime = ToolRuntimeContext(video_id=preprocessing_result.video_id, catalog=catalog)
+tools = build_video_tool_suite()
+
+print([spec.name for spec in tools.available_specs])
+result = tools.invoke(
+    "search_video_transcript",
+    {"query": "the person opens the door", "top_k": 5},
+    runtime,
+)
+print(result.to_json())
+```
+
+Pass a configured `visual_backend`, `ocr_backend`, and optional `embedding_backend` to
+`build_video_tool_suite` to enable VLM, OCR, and hybrid transcript retrieval. The seven tool
+definitions cover metadata lookup, transcript search, timeline-context expansion, focused
+visual inspection, screen-text OCR, coarse timeline scanning, and evidence-clip export.
+
+`export_evidence_clip` is runtime-guarded and is omitted from `available_specs` by default.
+After the user explicitly requests clips and deterministic verification succeeds, set a
+`DeliveryPolicy` containing only the verified evidence IDs and register tools from
+`tools.available_specs_for(runtime)`. Exported clips are persisted as typed catalog documents;
+the LLM receives attachment IDs and filenames, while local paths remain in the delivery ledger.

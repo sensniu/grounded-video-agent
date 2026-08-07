@@ -11,6 +11,7 @@ from grounded_video_agent.domain import (
     ValidationReport,
     ValidationStatus,
     VideoAsset,
+    VideoClipArtifact,
 )
 from grounded_video_agent.workspace.catalog.contracts import (
     CatalogDocumentKind,
@@ -143,3 +144,26 @@ class AudioAssetDocument:
     @property
     def video_id(self) -> str:
         return self.audio_asset.video_id
+
+
+@dataclass(frozen=True, slots=True)
+class VideoClipDocument:
+    """Typed metadata for one source-aligned exported video clip."""
+
+    ref: CatalogDocumentRef
+    video_clip: VideoClipArtifact
+    evidence_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.ref.kind is not CatalogDocumentKind.VIDEO_CLIP:
+            raise ValueError("video clip document ref has the wrong kind")
+        if self.ref.source_video_id != self.video_clip.video_id:
+            raise ValueError("video clip document must belong to its source video")
+        if any(not item.strip() for item in self.evidence_ids):
+            raise ValueError("video clip evidence ids must not be empty")
+        if len(set(self.evidence_ids)) != len(self.evidence_ids):
+            raise ValueError("video clip evidence ids must be unique")
+
+    @property
+    def video_id(self) -> str:
+        return self.video_clip.video_id

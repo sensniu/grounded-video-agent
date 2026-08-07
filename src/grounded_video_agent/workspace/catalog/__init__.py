@@ -26,6 +26,7 @@ from grounded_video_agent.workspace.catalog.documents import (
     MediaInspectionDocument,
     MediaInspectionNextAction,
     PrimaryStreamSelection,
+    VideoClipDocument,
 )
 from grounded_video_agent.workspace.catalog.filesystem import FilesystemArtifactCatalog
 from grounded_video_agent.workspace.catalog.repository import ArtifactCatalog
@@ -56,4 +57,5 @@ __all__ = [
     "MediaInspectionNextAction",
     "PrimaryStreamSelection",
     "ResolvedCatalogEntry",
+    "VideoClipDocument",
 ]

@@ -30,6 +30,7 @@ class CatalogResourceType(StrEnum):
 class CatalogDocumentKind(StrEnum):
     MEDIA_INSPECTION = "media_inspection"
     AUDIO_ASSET = "audio_asset"
+    VIDEO_CLIP = "video_clip"
 
 
 @dataclass(frozen=True, slots=True)
