@@ -129,6 +129,40 @@ To exercise the real sample video without a paid model call, set
 python -m pytest tests/integration/test_real_video_agent.py -s
 ```
 
+## Use the CLI
+
+The CLI is a thin adapter around the Agent's public request/result contract. After the editable
+install, check the local runtime without making a paid DeepSeek request:
+
+```bash
+gva doctor
+```
+
+Analyze one video placed directly under `analyzed_video/`:
+
+```bash
+gva analyze video.mp4 --question "这个视频主要讲了什么？"
+```
+
+Machine-readable output keeps JSON on standard output and diagnostics on standard error:
+
+```bash
+gva analyze video.mp4 -q "发生了什么？" --format json --output result.json
+```
+
+OCR and a reachable llama.cpp server are opt-in:
+
+```bash
+gva doctor --ocr rapidocr --vlm llama-cpp --vlm-url http://127.0.0.1:8080
+gva analyze video.mp4 -q "画面中写了什么？" \
+  --ocr rapidocr --vlm llama-cpp --vlm-url http://127.0.0.1:8080
+```
+
+Use `--evidence-clip` to request verified clip delivery and `--force-refresh` to rebuild cached
+preprocessing. CLI configuration follows `command option > environment/.env > default`; see
+`.env.example` for the `GVA_*` variables. `python -m grounded_video_agent.cli` is available as a
+fallback when the console entry point is not on `PATH`.
+
 ## Use the video tools
 
 The tool layer is framework-neutral. The framework injects the current `video_id`, catalog,

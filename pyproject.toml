@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "Evidence-grounded video analysis agent"
 requires-python = ">=3.11"
 
+[project.scripts]
+gva = "grounded_video_agent.cli.main:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
