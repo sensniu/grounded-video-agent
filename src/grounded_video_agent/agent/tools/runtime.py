@@ -125,6 +125,13 @@ class CandidateLedger:
         except KeyError as error:
             raise KeyError(f"unknown candidate_id: {candidate_id}") from error
 
+    def put(self, state: CandidateState) -> None:
+        self._items[state.candidate_id] = state
+
+    @property
+    def items(self) -> tuple[CandidateState, ...]:
+        return tuple(self._items.values())
+
 
 @dataclass(frozen=True, slots=True)
 class ContextWindowState:
@@ -146,6 +153,10 @@ class ContextLedger:
             return self._items[context_window_id]
         except KeyError as error:
             raise KeyError(f"unknown context_window_id: {context_window_id}") from error
+
+    @property
+    def items(self) -> tuple[ContextWindowState, ...]:
+        return tuple(self._items.values())
 
 
 class EvidenceLedger:
@@ -252,6 +263,49 @@ class SearchAttempt:
     exhausted: bool
 
 
+@dataclass(frozen=True, slots=True)
+class CandidateStateSnapshot:
+    candidate_id: str
+    chunk_id: str
+    exact_range: TimeRange
+    inspection_range: TimeRange
+    evidence_id: str
+    matched_queries: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class ToolRuntimeSnapshot:
+    """Checkpoint-safe ledgers; ephemeral capability caches are intentionally omitted."""
+
+    video_id: str
+    trace_id: str | None
+    limits: ResourceLimits
+    max_tool_calls: int
+    delivery_policy: DeliveryPolicy
+    candidates: tuple[CandidateStateSnapshot, ...] = ()
+    contexts: tuple[ContextWindowState, ...] = ()
+    evidence: tuple[EvidenceItem, ...] = ()
+    coverage_ranges: tuple[TimeRange, ...] = ()
+    deliveries: tuple[DeliveryState, ...] = ()
+    search_attempts: tuple[SearchAttempt, ...] = ()
+    call_count: int = 0
+    model_calls: int = 0
+    consecutive_no_information_gain: int = 0
+
+    def __post_init__(self) -> None:
+        if not self.video_id.strip():
+            raise ValueError("video_id must not be empty")
+        if self.trace_id is not None and not self.trace_id.strip():
+            raise ValueError("trace_id must not be empty")
+        if self.max_tool_calls <= 0:
+            raise ValueError("max_tool_calls must be positive")
+        for name in ("call_count", "model_calls", "consecutive_no_information_gain"):
+            if getattr(self, name) < 0:
+                raise ValueError(f"{name} must be non-negative")
+        if self.call_count > self.max_tool_calls:
+            raise ValueError("call_count cannot exceed max_tool_calls")
+
+
 @dataclass(slots=True)
 class ToolRuntimeContext:
     video_id: str
@@ -322,6 +376,72 @@ class ToolRuntimeContext:
             items,
             covered_ranges,
         )
+
+    def snapshot(self) -> ToolRuntimeSnapshot:
+        return ToolRuntimeSnapshot(
+            video_id=self.video_id,
+            trace_id=self.trace_id,
+            limits=self.limits,
+            max_tool_calls=self.max_tool_calls,
+            delivery_policy=self.delivery_policy,
+            candidates=tuple(
+                CandidateStateSnapshot(
+                    item.candidate_id,
+                    item.chunk_id,
+                    item.exact_range,
+                    item.inspection_range,
+                    item.evidence_id,
+                    tuple(item.matched_queries),
+                )
+                for item in self.candidates.items
+            ),
+            contexts=self.contexts.items,
+            evidence=self.evidence.items,
+            coverage_ranges=self.coverage.ranges,
+            deliveries=self.deliveries.items,
+            search_attempts=tuple(self.search_attempts),
+            call_count=self.call_count,
+            model_calls=self.model_calls,
+            consecutive_no_information_gain=self.consecutive_no_information_gain,
+        )
+
+    @classmethod
+    def from_snapshot(
+        cls,
+        snapshot: ToolRuntimeSnapshot,
+        catalog: ArtifactCatalog,
+    ) -> ToolRuntimeContext:
+        runtime = cls(
+            video_id=snapshot.video_id,
+            catalog=catalog,
+            trace_id=snapshot.trace_id,
+            limits=snapshot.limits,
+            max_tool_calls=snapshot.max_tool_calls,
+            delivery_policy=snapshot.delivery_policy,
+            call_count=snapshot.call_count,
+            model_calls=snapshot.model_calls,
+            consecutive_no_information_gain=snapshot.consecutive_no_information_gain,
+        )
+        for candidate in snapshot.candidates:
+            runtime.candidates.put(
+                CandidateState(
+                    candidate.candidate_id,
+                    candidate.chunk_id,
+                    candidate.exact_range,
+                    candidate.inspection_range,
+                    candidate.evidence_id,
+                    list(candidate.matched_queries),
+                )
+            )
+        for context in snapshot.contexts:
+            runtime.contexts.put(context)
+        for evidence in snapshot.evidence:
+            runtime.evidence.add(evidence)
+        runtime.coverage.add(snapshot.coverage_ranges)
+        for delivery in snapshot.deliveries:
+            runtime.deliveries.put(delivery)
+        runtime.search_attempts.extend(snapshot.search_attempts)
+        return runtime
 
 
 def merge_ranges(ranges: tuple[TimeRange, ...]) -> tuple[TimeRange, ...]:

@@ -92,6 +92,43 @@ decision type. A paid API smoke test is opt-in with
 `RUN_DEEPSEEK_INTEGRATION=1` in `.env`, followed by
 `python -m pytest tests/integration/test_real_deepseek_llm.py`.
 
+## Run the Agent
+
+The Agent uses a custom LangGraph state graph. DeepSeek proposes one structured action per turn;
+deterministic nodes validate and execute tools, accumulate evidence, verify claim-to-evidence
+links, and optionally export authorized evidence clips.
+
+```python
+from dotenv import load_dotenv
+
+from grounded_video_agent.agent import AgentRequest, build_local_video_agent
+from grounded_video_agent.infrastructure.llm import DeepSeekLLMBackend
+
+load_dotenv()
+
+agent = build_local_video_agent(DeepSeekLLMBackend())
+result = agent.invoke(
+    AgentRequest(
+        filename="video.mp4",
+        question="这个人进入房间之前做了什么？",
+        evidence_clip_requested=False,
+    )
+)
+print(result.to_json())
+```
+
+The local factory enables metadata, transcript search, and context tools by default. Pass a
+configured `visual_backend` or `ocr_backend` to expose VLM, timeline-scan, or OCR tools. The
+default checkpointer is in-memory and keyed by `AgentRequest.request_id`; replace it through the
+`VideoAgent` constructor when durable storage is needed.
+
+To exercise the real sample video without a paid model call, set
+`RUN_VIDEO_AGENT_INTEGRATION=1` in `.env` and run:
+
+```bash
+python -m pytest tests/integration/test_real_video_agent.py -s
+```
+
 ## Use the video tools
 
 The tool layer is framework-neutral. The framework injects the current `video_id`, catalog,

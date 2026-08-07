@@ -90,6 +90,10 @@ class PreprocessingPipeline:
         self._dependencies = dependencies
         self._config = config or PreprocessingConfig()
 
+    @property
+    def catalog(self) -> ArtifactCatalog:
+        return self._catalog
+
     def run(self, request: PreprocessingRequest | str) -> PreprocessingResult:
         normalized = (
             request

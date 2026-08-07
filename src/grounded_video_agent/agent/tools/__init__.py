@@ -36,9 +36,11 @@ from grounded_video_agent.agent.tools.evidence_clip import ExportEvidenceClipToo
 from grounded_video_agent.agent.tools.factory import build_video_tool_suite
 from grounded_video_agent.agent.tools.metadata import GetVideoMetadataTool
 from grounded_video_agent.agent.tools.runtime import (
+    CandidateStateSnapshot,
     DeliveryPolicy,
     DeliveryState,
     ToolRuntimeContext,
+    ToolRuntimeSnapshot,
 )
 from grounded_video_agent.agent.tools.screen_text import ReadScreenTextTool
 from grounded_video_agent.agent.tools.suite import VideoToolSuite
@@ -51,6 +53,7 @@ __all__ = [
     "ContextDirection",
     "ClipExportFailure",
     "ClipGrouping",
+    "CandidateStateSnapshot",
     "DeliveryPolicy",
     "DeliveryState",
     "EvidenceDelta",
@@ -82,6 +85,7 @@ __all__ = [
     "ToolProgress",
     "ToolResult",
     "ToolRuntimeContext",
+    "ToolRuntimeSnapshot",
     "ToolSpec",
     "ToolStatus",
     "TranscriptCandidate",
