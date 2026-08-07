@@ -30,6 +30,8 @@ class ArtifactKind(StrEnum):
     FRAME_IMAGE = "frame_image"
     TRANSCRIPT = "transcript"
     OCR = "ocr"
+    EMBEDDING = "embedding"
+    METADATA = "metadata"
     MANIFEST = "manifest"
     INDEX = "index"
     OTHER = "other"
@@ -43,7 +45,10 @@ class ManifestKind(StrEnum):
     FRAMES = "frames"
     TRANSCRIPT = "transcript"
     OCR = "ocr"
+    VISUAL_DESCRIPTIONS = "visual_descriptions"
+    EMBEDDINGS = "embeddings"
     INDEX = "index"
+    EVIDENCE = "evidence"
 
 
 @dataclass(frozen=True, slots=True)

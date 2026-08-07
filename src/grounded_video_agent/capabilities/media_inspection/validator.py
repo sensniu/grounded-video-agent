@@ -44,6 +44,23 @@ class MediaValidator:
     def policy(self) -> MediaValidationPolicy:
         return self._policy
 
+    def cache_identity(self) -> dict[str, object]:
+        return {
+            "version": self._producer.version,
+            "policy": {
+                "require_audio": self._policy.require_audio,
+                "warn_when_audio_missing": self._policy.warn_when_audio_missing,
+                "max_duration_ms": self._policy.max_duration_ms,
+                "max_width": self._policy.max_width,
+                "max_height": self._policy.max_height,
+                "supported_video_codecs": (
+                    sorted(self._policy.supported_video_codecs)
+                    if self._policy.supported_video_codecs is not None
+                    else None
+                ),
+            },
+        }
+
     def validate(self, probe: MediaProbe) -> ValidationReport:
         return ValidationReport(
             video_id=probe.video_id,

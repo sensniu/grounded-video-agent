@@ -1,0 +1,1 @@
+"""Visual media derivation capabilities."""

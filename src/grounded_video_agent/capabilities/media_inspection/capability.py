@@ -43,6 +43,7 @@ from grounded_video_agent.input import (
 class MediaInspectionCapability:
     """Inspect basic media information without deriving any new media."""
 
+    VERSION = "1.0.0"
     SCHEMA_VERSION = "1"
 
     def __init__(
@@ -59,11 +60,39 @@ class MediaInspectionCapability:
         self._validator = validator or MediaValidator()
         self._retain_raw_probe = retain_raw_probe
 
+    def cache_identity(self) -> dict[str, object]:
+        return {
+            "schema_version": self.SCHEMA_VERSION,
+            "validator": self._validator.cache_identity(),
+        }
+
     def inspect(self, filename: str) -> VideoInspectionResult:
         inspection_id = f"inspection_{uuid4().hex}"
         started_at = datetime.now(UTC)
         started = perf_counter()
         registration = self._registrar.register(filename)
+        return self._inspect_registered(registration, inspection_id, started_at, started)
+
+    def inspect_registered(
+        self,
+        registration: VideoRegistrationResult,
+    ) -> VideoInspectionResult:
+        """Inspect a previously registered video without hashing the source again."""
+
+        return self._inspect_registered(
+            registration,
+            f"inspection_{uuid4().hex}",
+            datetime.now(UTC),
+            perf_counter(),
+        )
+
+    def _inspect_registered(
+        self,
+        registration: VideoRegistrationResult,
+        inspection_id: str,
+        started_at: datetime,
+        started: float,
+    ) -> VideoInspectionResult:
         if registration.status is RegistrationStatus.FAILED:
             assert registration.error is not None
             return self._failed_result(
