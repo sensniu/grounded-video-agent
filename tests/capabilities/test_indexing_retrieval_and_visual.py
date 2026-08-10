@@ -204,6 +204,17 @@ class _FakeVisualBackend:
         return VisualModelResponse(self.get_model_info(), observations)
 
 
+class _AsyncFakeVisualBackend:
+    def __init__(self) -> None:
+        self._backend = _FakeVisualBackend()
+
+    async def get_model_info(self) -> VisualModelInfo:
+        return self._backend.get_model_info()
+
+    async def analyze(self, request: VisualModelRequest) -> VisualModelResponse:
+        return self._backend.analyze(request)
+
+
 def test_transcript_index_search_and_timeline_context(tmp_path: Path) -> None:
     transcript = _transcript()
     chunks = _chunks()
@@ -300,7 +311,7 @@ def test_visual_analysis_index_and_search(tmp_path: Path) -> None:
 async def test_visual_model_fastapi_service_validates_paths(tmp_path: Path) -> None:
     frame_path = tmp_path / "frame.jpg"
     frame_path.write_bytes(b"image")
-    app = create_app(_FakeVisualBackend(), allowed_roots=(tmp_path,))
+    app = create_app(_AsyncFakeVisualBackend(), allowed_roots=(tmp_path,))
     transport = httpx.ASGITransport(app=app)
     client = httpx.AsyncClient(transport=transport, base_url="http://test")
 

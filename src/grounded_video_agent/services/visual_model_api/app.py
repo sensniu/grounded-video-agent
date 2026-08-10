@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from grounded_video_agent.infrastructure.visual_model import (
-    VisualModelBackend,
+    AsyncVisualModelBackend,
     VisualModelFrame,
     VisualModelRequest,
     VisualModelTarget,
@@ -62,19 +63,27 @@ class _AnalyzePayload(BaseModel):
 
 
 def create_app(
-    backend: VisualModelBackend,
+    backend: AsyncVisualModelBackend,
     *,
     allowed_roots: tuple[str | Path, ...],
+    max_frames: int = 64,
+    max_targets: int = 16,
 ) -> FastAPI:
     """Create a single-worker app; model inference is intentionally serialized."""
     roots = tuple(Path(root).expanduser().resolve() for root in allowed_roots)
     if not roots:
         raise ValueError("at least one allowed frame root is required")
+    if max_frames <= 0 or max_targets <= 0:
+        raise ValueError("request limits must be positive")
     app = FastAPI(title="Grounded Video Agent Visual Model API", version="1.0.0")
+    inference_lock = asyncio.Lock()
 
     @app.get("/health")
     async def health() -> dict[str, object]:
-        info = backend.get_model_info()
+        try:
+            info = await backend.get_model_info()
+        except Exception as error:
+            raise HTTPException(status_code=503, detail=str(error)) from error
         return {
             "status": "ok",
             "model_name": info.model_name,
@@ -86,6 +95,13 @@ def create_app(
 
     @app.post("/v1/analyze")
     async def analyze(payload: _AnalyzePayload) -> dict[str, object]:
+        if len(payload.frames) > max_frames:
+            raise HTTPException(status_code=400, detail=f"at most {max_frames} frames are allowed")
+        if len(payload.targets) > max_targets:
+            raise HTTPException(
+                status_code=400,
+                detail=f"at most {max_targets} targets are allowed",
+            )
         frames = tuple(
             VisualModelFrame(item.frame_id, item.uri, item.timestamp_ms)
             for item in payload.frames
@@ -107,7 +123,8 @@ def create_app(
             ),
         )
         try:
-            result = backend.analyze(request)
+            async with inference_lock:
+                result = await backend.analyze(request)
         except Exception as error:
             raise HTTPException(status_code=503, detail=str(error)) from error
         return {

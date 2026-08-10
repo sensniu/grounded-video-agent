@@ -120,6 +120,12 @@ class VisualModelBackend(Protocol):
     def analyze(self, request: VisualModelRequest) -> VisualModelResponse: ...
 
 
+class AsyncVisualModelBackend(Protocol):
+    async def get_model_info(self) -> VisualModelInfo: ...
+
+    async def analyze(self, request: VisualModelRequest) -> VisualModelResponse: ...
+
+
 def _require_text(value: str, field_name: str) -> None:
     if not value or not value.strip():
         raise ValueError(f"{field_name} must not be empty")

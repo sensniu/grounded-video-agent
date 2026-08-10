@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from urllib.parse import urlparse
 
 import httpx
 
@@ -20,14 +21,25 @@ class FastAPIVisualModelClient:
         self,
         base_url: str,
         *,
-        timeout_seconds: float = 120.0,
+        timeout_seconds: float = 240.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         if not base_url.strip():
             raise ValueError("base_url must not be empty")
+        normalized_base_url = base_url.rstrip("/")
+        parsed = urlparse(normalized_base_url)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise ValueError("base_url must be an absolute HTTP(S) URL without credentials")
         if timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
-        self._base_url = base_url.rstrip("/")
+        self._base_url = normalized_base_url
         self._timeout = timeout_seconds
         self._transport = transport
 

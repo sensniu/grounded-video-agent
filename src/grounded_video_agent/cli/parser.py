@@ -36,7 +36,7 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument(
         "--no-network",
         action="store_true",
-        help="skip the llama.cpp health check",
+        help="skip the selected visual backend health check",
     )
     _add_output_arguments(doctor, allow_file=False)
     return parser
@@ -48,8 +48,12 @@ def _add_runtime_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--llm-model", help="DeepSeek model (env: GVA_DEEPSEEK_MODEL)")
     parser.add_argument("--llm-base-url", help="DeepSeek API URL (env: GVA_DEEPSEEK_BASE_URL)")
     parser.add_argument("--ocr", choices=("off", "rapidocr"), help="OCR backend")
-    parser.add_argument("--vlm", choices=("off", "llama-cpp"), help="visual model backend")
-    parser.add_argument("--vlm-url", help="llama.cpp URL (env: GVA_LLAMA_CPP_BASE_URL)")
+    parser.add_argument(
+        "--vlm",
+        choices=("off", "llama-cpp", "fastapi"),
+        help="visual model backend (default: fastapi)",
+    )
+    parser.add_argument("--vlm-url", help="selected visual backend URL")
     parser.add_argument("--vlm-model", help="optional served llama.cpp model id")
 
 

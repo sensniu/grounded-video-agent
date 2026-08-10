@@ -69,6 +69,19 @@ def test_settings_precedence_is_cli_then_environment_then_default(tmp_path: Path
     assert settings.vlm_provider is VLMProvider.LLAMA_CPP
 
 
+def test_settings_default_to_fastapi_visual_service(tmp_path: Path) -> None:
+    settings = CLIRuntimeSettings.from_namespace(
+        _namespace(),
+        {
+            "GVA_ARTIFACT_ROOT": str(tmp_path),
+            "GVA_FASTAPI_VLM_BASE_URL": "http://visual-api.test:8081",
+        },
+    )
+
+    assert settings.vlm_provider is VLMProvider.FASTAPI
+    assert settings.selected_vlm_base_url == "http://visual-api.test:8081"
+
+
 def test_analyze_maps_cli_arguments_to_agent_request(capsys: object) -> None:
     fake_agent = _FakeAgent(_successful_result())
     captured_settings: list[CLIRuntimeSettings] = []

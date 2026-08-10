@@ -11,8 +11,10 @@ from pathlib import Path
 from typing import Any
 
 from grounded_video_agent.infrastructure.visual_model import (
+    FastAPIVisualModelClient,
     LlamaCppBackendConfig,
     LlamaCppVisualModelBackend,
+    VisualModelBackend,
 )
 
 from .config import CLIRuntimeSettings, OCRProvider, VLMProvider
@@ -151,25 +153,30 @@ def _vlm_check(settings: CLIRuntimeSettings, *, check_network: bool) -> DoctorCh
     if settings.vlm_provider is VLMProvider.OFF:
         return DoctorCheck("vlm", CheckStatus.SKIPPED, "disabled")
     if not check_network:
+        url = settings.selected_vlm_base_url or "disabled"
         return DoctorCheck(
-            "vlm", CheckStatus.SKIPPED, f"network check disabled: {settings.llama_cpp_base_url}"
+            "vlm", CheckStatus.SKIPPED, f"network check disabled: {url}"
         )
     try:
-        backend = LlamaCppVisualModelBackend(
-            LlamaCppBackendConfig(
-                base_url=settings.llama_cpp_base_url,
-                allowed_roots=(settings.artifact_root,),
-                model_id=settings.llama_cpp_model_id,
+        backend: VisualModelBackend
+        if settings.vlm_provider is VLMProvider.LLAMA_CPP:
+            backend = LlamaCppVisualModelBackend(
+                LlamaCppBackendConfig(
+                    base_url=settings.llama_cpp_base_url,
+                    allowed_roots=(settings.artifact_root,),
+                    model_id=settings.llama_cpp_model_id,
+                )
             )
-        )
+        else:
+            backend = FastAPIVisualModelClient(settings.fastapi_base_url)
         model = backend.get_model_info()
     except Exception as error:
         return DoctorCheck("vlm", CheckStatus.ERROR, str(error))
     return DoctorCheck(
         "vlm",
         CheckStatus.OK,
-        f"{model.provider or 'llama.cpp'}/{model.model_name} at "
-        f"{settings.llama_cpp_base_url}",
+        f"{model.provider or settings.vlm_provider.value}/{model.model_name} at "
+        f"{settings.selected_vlm_base_url}",
     )
 
 
