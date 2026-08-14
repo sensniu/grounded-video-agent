@@ -60,7 +60,7 @@ class AgentReasoningService:
                 "expected_information_gain": "A candidate segment and exact time range",
                 "final_reason": None,
             },
-            max_output_tokens=2_048,
+            max_output_tokens=12_000,
         )
 
     async def draft_answer(
@@ -88,7 +88,7 @@ class AgentReasoningService:
                 ],
                 "limitations": [],
             },
-            max_output_tokens=4_096,
+            max_output_tokens=64_000,
         )
 
     async def _generate(

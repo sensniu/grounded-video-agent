@@ -109,9 +109,9 @@ def test_settings_default_to_fastapi_visual_service(tmp_path: Path) -> None:
 def test_agent_default_resource_limits_are_sized_for_long_video_analysis() -> None:
     limits = AgentLimits()
 
-    assert limits.max_iterations == 18
-    assert limits.max_tool_calls == 50
-    assert limits.max_llm_calls == 30
+    assert limits.max_iterations == 50
+    assert limits.max_tool_calls == 100
+    assert limits.max_llm_calls == 60
     assert limits.max_total_tokens == 6_000_000
 
 
@@ -123,7 +123,7 @@ def test_progress_uses_stderr_without_corrupting_json_stdout(capsys: object) -> 
         ProgressPhase.INITIALIZING,
         ProgressStatus.STARTED,
         "开始分析视频。",
-        ProgressCounters(0, 18, 0, 30, 0, 50, 0, 0, 6_000_000),
+        ProgressCounters(0, 50, 0, 60, 0, 100, 0, 0, 6_000_000),
     )
     fake_agent = _FakeAgent(_successful_result(), (event,))
 

@@ -353,10 +353,11 @@ gva analyze video.mp4 -q "发生了什么？" --progress verbose
 gva analyze video.mp4 -q "发生了什么？" --progress off
 ```
 
-The default long-video budget permits 18 planning iterations, 50 Tool calls, 30 reasoning-LLM
-calls, and 6,000,000 cumulative input-plus-output tokens. These are hard ceilings rather than
-targets and remain individually overridable with `--max-iterations`, `--max-tool-calls`,
-`--max-llm-calls`, and `--max-total-tokens`.
+The default long-video budget permits 50 planning iterations, 100 Tool calls, 60 reasoning-LLM
+calls, and 6,000,000 cumulative input-plus-output tokens. A single planning completion may use up
+to 12,000 output tokens, while final answer generation may use up to 64,000. These are hard
+ceilings rather than targets and remain individually overridable with `--max-iterations`,
+`--max-tool-calls`, `--max-llm-calls`, and `--max-total-tokens`.
 
 OCR remains opt-in. The CLI defaults to the FastAPI visual adapter at
 `http://127.0.0.1:8081`. Windows/WSL can explicitly select llama.cpp instead:

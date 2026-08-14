@@ -306,6 +306,9 @@ async def test_agent_runs_search_verify_and_authorized_delivery() -> None:
     assert result.attachments[0].attachment_id == "delivery-1"
     assert result.usage.llm_calls == 3
     assert result.usage.tool_calls == 3
+    assert llm.requests[0].max_output_tokens == 12_000
+    assert llm.requests[1].max_output_tokens == 12_000
+    assert llm.requests[2].max_output_tokens == 64_000
     assert not llm.outputs
     assert progress_events[0].phase is ProgressPhase.INITIALIZING
     assert progress_events[-1].phase is ProgressPhase.COMPLETE

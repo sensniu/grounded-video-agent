@@ -21,11 +21,11 @@ def _event(*, status: ProgressStatus = ProgressStatus.COMPLETED) -> AgentProgres
         message="工具执行完成。",
         counters=ProgressCounters(
             iteration=3,
-            max_iterations=18,
+            max_iterations=50,
             llm_calls=3,
-            max_llm_calls=30,
+            max_llm_calls=60,
             tool_calls=2,
-            max_tool_calls=50,
+            max_tool_calls=100,
             input_tokens=95_572,
             output_tokens=6_285,
             max_total_tokens=6_000_000,
@@ -46,7 +46,7 @@ def test_compact_progress_writes_bounded_milestone_to_stderr_stream() -> None:
 
     output = stream.getvalue()
     assert "扫描视频时间线" in output
-    assert "规划 3/18" in output
+    assert "规划 3/50" in output
     assert "101.9k/6.0M" in output
     assert "new_evidence" not in output
 
