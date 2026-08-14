@@ -6,8 +6,11 @@ from typing import Any, cast
 import pytest
 
 from grounded_video_agent.agent import (
+    AgentProgressEvent,
     AgentRequest,
     AgentStatus,
+    ProgressPhase,
+    ProgressStatus,
     VideoAgent,
 )
 from grounded_video_agent.agent.orchestration import AgentDependencies
@@ -285,13 +288,15 @@ async def test_agent_runs_search_verify_and_authorized_delivery() -> None:
     )
     agent = VideoAgent(dependencies)
 
+    progress_events: list[AgentProgressEvent] = []
     result = await agent.ainvoke(
         AgentRequest(
             "video.mp4",
             "这个人进入房间前做了什么？",
             request_id="agent-test-1",
             evidence_clip_requested=True,
-        )
+        ),
+        progress=progress_events.append,
     )
 
     assert result.status is AgentStatus.SUCCESS
@@ -302,6 +307,13 @@ async def test_agent_runs_search_verify_and_authorized_delivery() -> None:
     assert result.usage.llm_calls == 3
     assert result.usage.tool_calls == 3
     assert not llm.outputs
+    assert progress_events[0].phase is ProgressPhase.INITIALIZING
+    assert progress_events[-1].phase is ProgressPhase.COMPLETE
+    assert progress_events[-1].status is ProgressStatus.COMPLETED
+    assert any(
+        event.phase is ProgressPhase.TOOL and event.status is ProgressStatus.STARTED
+        for event in progress_events
+    )
 
 
 @pytest.mark.asyncio

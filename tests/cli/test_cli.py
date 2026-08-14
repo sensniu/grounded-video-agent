@@ -5,7 +5,17 @@ from argparse import Namespace
 from collections.abc import Mapping
 from pathlib import Path
 
-from grounded_video_agent.agent import AgentRequest, AgentResult, AgentStatus
+from grounded_video_agent.agent import (
+    AgentLimits,
+    AgentProgressEvent,
+    AgentRequest,
+    AgentResult,
+    AgentStatus,
+    ProgressCounters,
+    ProgressPhase,
+    ProgressSink,
+    ProgressStatus,
+)
 from grounded_video_agent.cli.adapter import AgentInvoker
 from grounded_video_agent.cli.config import CLIRuntimeSettings, OCRProvider, VLMProvider
 from grounded_video_agent.cli.doctor import (
@@ -17,12 +27,25 @@ from grounded_video_agent.cli.main import run
 
 
 class _FakeAgent:
-    def __init__(self, result: AgentResult) -> None:
+    def __init__(
+        self,
+        result: AgentResult,
+        progress_events: tuple[AgentProgressEvent, ...] = (),
+    ) -> None:
         self.result = result
+        self.progress_events = progress_events
         self.requests: list[AgentRequest] = []
 
-    def invoke(self, request: AgentRequest) -> AgentResult:
+    def invoke(
+        self,
+        request: AgentRequest,
+        *,
+        progress: ProgressSink | None = None,
+    ) -> AgentResult:
         self.requests.append(request)
+        if progress is not None:
+            for event in self.progress_events:
+                progress(event)
         return self.result
 
 
@@ -36,6 +59,7 @@ def _namespace(**values: object) -> Namespace:
         "vlm": None,
         "vlm_url": None,
         "vlm_model": None,
+        "progress": "auto",
     }
     defaults.update(values)
     return Namespace(**defaults)
@@ -80,6 +104,48 @@ def test_settings_default_to_fastapi_visual_service(tmp_path: Path) -> None:
 
     assert settings.vlm_provider is VLMProvider.FASTAPI
     assert settings.selected_vlm_base_url == "http://visual-api.test:8081"
+
+
+def test_agent_default_resource_limits_are_sized_for_long_video_analysis() -> None:
+    limits = AgentLimits()
+
+    assert limits.max_iterations == 18
+    assert limits.max_tool_calls == 50
+    assert limits.max_llm_calls == 30
+    assert limits.max_total_tokens == 6_000_000
+
+
+def test_progress_uses_stderr_without_corrupting_json_stdout(capsys: object) -> None:
+    event = AgentProgressEvent(
+        1,
+        "request-1",
+        1_000,
+        ProgressPhase.INITIALIZING,
+        ProgressStatus.STARTED,
+        "开始分析视频。",
+        ProgressCounters(0, 18, 0, 30, 0, 50, 0, 0, 6_000_000),
+    )
+    fake_agent = _FakeAgent(_successful_result(), (event,))
+
+    exit_code = run(
+        [
+            "analyze",
+            "video.mp4",
+            "-q",
+            "发生了什么？",
+            "--format",
+            "json",
+            "--progress",
+            "compact",
+        ],
+        environ={"DEEPSEEK_API_KEY": "test-key"},
+        agent_factory=lambda settings: fake_agent,
+    )
+
+    captured = capsys.readouterr()  # type: ignore[attr-defined]
+    assert exit_code == 0
+    assert json.loads(captured.out)["status"] == "success"
+    assert "初始化" in captured.err
 
 
 def test_analyze_maps_cli_arguments_to_agent_request(capsys: object) -> None:

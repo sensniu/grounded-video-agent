@@ -29,6 +29,12 @@ def build_parser() -> argparse.ArgumentParser:
     analyze.add_argument("--max-tool-calls", type=_positive_int)
     analyze.add_argument("--max-llm-calls", type=_positive_int)
     analyze.add_argument("--max-total-tokens", type=_positive_int)
+    analyze.add_argument(
+        "--progress",
+        choices=("auto", "off", "compact", "verbose"),
+        default="auto",
+        help="progress display mode (default: auto)",
+    )
     _add_output_arguments(analyze)
 
     doctor = subparsers.add_parser("doctor", help="check the local runtime without paid LLM calls")

@@ -3,11 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-from grounded_video_agent.agent import AgentLimits, AgentRequest, AgentResult
+from grounded_video_agent.agent import AgentLimits, AgentRequest, AgentResult, ProgressSink
 
 
 class AgentInvoker(Protocol):
-    def invoke(self, request: AgentRequest) -> AgentResult: ...
+    def invoke(
+        self,
+        request: AgentRequest,
+        *,
+        progress: ProgressSink | None = None,
+    ) -> AgentResult: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,7 +29,12 @@ class AnalyzeOptions:
     max_total_tokens: int | None = None
 
 
-def invoke_agent(agent: AgentInvoker, options: AnalyzeOptions) -> AgentResult:
+def invoke_agent(
+    agent: AgentInvoker,
+    options: AnalyzeOptions,
+    *,
+    progress: ProgressSink | None = None,
+) -> AgentResult:
     default_limits = AgentLimits()
     limits = AgentLimits(
         max_iterations=options.max_iterations or default_limits.max_iterations,
@@ -54,4 +64,4 @@ def invoke_agent(agent: AgentInvoker, options: AnalyzeOptions) -> AgentResult:
             force_refresh=options.force_refresh,
             limits=limits,
         )
-    return agent.invoke(request)
+    return agent.invoke(request, progress=progress)

@@ -107,10 +107,10 @@ class AnswerDraft(_StrictModel):
 
 @dataclass(frozen=True, slots=True)
 class AgentLimits:
-    max_iterations: int = 12
-    max_tool_calls: int = 10
-    max_llm_calls: int = 16
-    max_total_tokens: int = 100_000
+    max_iterations: int = 18
+    max_tool_calls: int = 50
+    max_llm_calls: int = 30
+    max_total_tokens: int = 6_000_000
     max_replans: int = 3
     max_remediations: int = 2
     min_global_coverage: float = 0.7

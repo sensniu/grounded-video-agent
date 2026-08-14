@@ -343,6 +343,21 @@ Machine-readable output keeps JSON on standard output and diagnostics on standar
 gva analyze video.mp4 -q "发生了什么？" --format json --output result.json
 ```
 
+`gva analyze` reports structured Agent progress on standard error. Interactive terminals update
+one compact live panel; redirected or non-interactive runs emit only milestone lines, so JSON on
+standard output remains machine-readable. Select the display explicitly when needed:
+
+```bash
+gva analyze video.mp4 -q "发生了什么？" --progress compact
+gva analyze video.mp4 -q "发生了什么？" --progress verbose
+gva analyze video.mp4 -q "发生了什么？" --progress off
+```
+
+The default long-video budget permits 18 planning iterations, 50 Tool calls, 30 reasoning-LLM
+calls, and 6,000,000 cumulative input-plus-output tokens. These are hard ceilings rather than
+targets and remain individually overridable with `--max-iterations`, `--max-tool-calls`,
+`--max-llm-calls`, and `--max-total-tokens`.
+
 OCR remains opt-in. The CLI defaults to the FastAPI visual adapter at
 `http://127.0.0.1:8081`. Windows/WSL can explicitly select llama.cpp instead:
 

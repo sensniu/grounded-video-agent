@@ -17,6 +17,7 @@ from .config import CLIRuntimeSettings
 from .doctor import DoctorReport, run_doctor
 from .errors import CLIConfigurationError, CLIError, ExitCode
 from .parser import build_parser
+from .progress import CLIProgressRenderer
 from .rendering import render_agent_result, render_doctor_report
 
 AgentFactory = Callable[[CLIRuntimeSettings], AgentInvoker]
@@ -76,21 +77,24 @@ def _run_analyze(
             source_path=settings.input_root / namespace.video,
         )
     agent = agent_factory(settings)
-    result = invoke_agent(
-        agent,
-        AnalyzeOptions(
-            filename=namespace.video,
-            question=namespace.question,
-            response_language=namespace.language,
-            evidence_clip_requested=namespace.evidence_clip,
-            force_refresh=namespace.force_refresh,
-            request_id=namespace.request_id,
-            max_iterations=namespace.max_iterations,
-            max_tool_calls=namespace.max_tool_calls,
-            max_llm_calls=namespace.max_llm_calls,
-            max_total_tokens=namespace.max_total_tokens,
-        ),
-    )
+    progress_renderer = CLIProgressRenderer(namespace.progress)
+    with progress_renderer:
+        result = invoke_agent(
+            agent,
+            AnalyzeOptions(
+                filename=namespace.video,
+                question=namespace.question,
+                response_language=namespace.language,
+                evidence_clip_requested=namespace.evidence_clip,
+                force_refresh=namespace.force_refresh,
+                request_id=namespace.request_id,
+                max_iterations=namespace.max_iterations,
+                max_tool_calls=namespace.max_tool_calls,
+                max_llm_calls=namespace.max_llm_calls,
+                max_total_tokens=namespace.max_total_tokens,
+            ),
+            progress=progress_renderer.emit if progress_renderer.enabled else None,
+        )
     rendered = render_agent_result(result, namespace.format)
     if output_path is not None:
         _write_output(output_path, rendered)

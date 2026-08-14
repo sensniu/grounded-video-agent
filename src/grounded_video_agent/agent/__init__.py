@@ -16,6 +16,13 @@ from grounded_video_agent.agent.contracts import (
     AnswerDraft,
     QuestionIntent,
 )
+from grounded_video_agent.agent.progress import (
+    AgentProgressEvent,
+    ProgressCounters,
+    ProgressPhase,
+    ProgressSink,
+    ProgressStatus,
+)
 from grounded_video_agent.agent.service import VideoAgent, build_local_video_agent
 from grounded_video_agent.agent.tools import (
     ToolRuntimeContext,
@@ -31,6 +38,7 @@ __all__ = [
     "AgentDecision",
     "AgentError",
     "AgentLimits",
+    "AgentProgressEvent",
     "AgentRequest",
     "AgentResult",
     "AgentStatus",
@@ -38,6 +46,10 @@ __all__ = [
     "AnswerClaimDraft",
     "AnswerDraft",
     "QuestionIntent",
+    "ProgressCounters",
+    "ProgressPhase",
+    "ProgressSink",
+    "ProgressStatus",
     "ToolRuntimeContext",
     "VideoAgent",
     "VideoToolSuite",
