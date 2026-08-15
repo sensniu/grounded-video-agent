@@ -8,7 +8,8 @@ __pycache__/
 
 
 # custom sources
-analyzed_video/
+analyzed_video/*
+!analyzed_video/.gitkeep
 AGENTS.md
 VisdeoAgentSchedule.md
 tools_video/
