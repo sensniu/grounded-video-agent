@@ -10,6 +10,7 @@ from pydantic import TypeAdapter, ValidationError
 from grounded_video_agent.agent.tools._support import failed_result
 from grounded_video_agent.agent.tools.contracts import ToolResult, ToolSpec
 from grounded_video_agent.agent.tools.runtime import ToolRuntimeContext
+from grounded_video_agent.observability import emit_trace
 
 
 class RegisteredVideoTool(Protocol):
@@ -75,19 +76,66 @@ class VideoToolSuite:
         arguments: object,
         runtime: ToolRuntimeContext,
     ) -> ToolResult[Any]:
+        emit_trace(
+            "tool.request",
+            {
+                "tool_name": name,
+                "arguments": arguments,
+                "call_count_before": runtime.call_count,
+            },
+            operation_id=runtime.trace_id,
+            phase="tool",
+        )
         tool = next((item for item in self.tools if item.name == name), None)
         if tool is None:
-            return failed_result(
+            result = failed_result(
                 f"unknown_tool_{runtime.call_count + 1:04d}",
                 "UNKNOWN_TOOL",
                 f"Unknown video tool: {name}",
             )
+            self._trace_result(name, result, runtime)
+            return result
         try:
             request = TypeAdapter(tool.input_type).validate_python(arguments)
         except ValidationError as error:
-            return failed_result(
+            result = failed_result(
                 f"{name}_invalid_input_{runtime.call_count + 1:04d}",
                 "INVALID_TOOL_INPUT",
                 str(error),
             )
-        return tool.execute(request, runtime)
+            self._trace_result(name, result, runtime)
+            return result
+        try:
+            result = tool.execute(request, runtime)
+        except Exception as error:
+            emit_trace(
+                "tool.error",
+                {
+                    "tool_name": name,
+                    "validated_request": request,
+                    "error": error,
+                },
+                operation_id=runtime.trace_id,
+                phase="tool",
+            )
+            raise
+        self._trace_result(name, result, runtime)
+        return result
+
+    @staticmethod
+    def _trace_result(
+        name: str,
+        result: ToolResult[Any],
+        runtime: ToolRuntimeContext,
+    ) -> None:
+        emit_trace(
+            "tool.response",
+            {
+                "tool_name": name,
+                "call_id": result.call_id,
+                "result": result,
+                "call_count_after": runtime.call_count,
+            },
+            operation_id=result.call_id,
+            phase="tool",
+        )

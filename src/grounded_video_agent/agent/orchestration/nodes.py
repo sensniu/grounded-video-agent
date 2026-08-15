@@ -31,6 +31,7 @@ from grounded_video_agent.domain import (
     ResourceLimits,
 )
 from grounded_video_agent.infrastructure.llm import LLMResponse
+from grounded_video_agent.observability import emit_trace
 from grounded_video_agent.pipelines import (
     PipelineStatus,
     PreprocessingRequest,
@@ -51,13 +52,27 @@ class AgentNodes:
 
     async def bootstrap(self, state: AgentState) -> dict[str, Any]:
         request = state["request"]
-        preprocessing = self._dependencies.pipeline.run(
-            PreprocessingRequest(
-                request.filename,
-                force_refresh=request.force_refresh,
-                trace_id=request.trace_id or request.request_id,
-            )
+        preprocessing_request = PreprocessingRequest(
+            request.filename,
+            force_refresh=request.force_refresh,
+            trace_id=request.trace_id or request.request_id,
         )
+        emit_trace(
+            "pipeline.started",
+            {"request": preprocessing_request},
+            operation_id=request.request_id,
+            phase="preprocessing",
+        )
+        try:
+            preprocessing = self._dependencies.pipeline.run(preprocessing_request)
+        except Exception as error:
+            emit_trace(
+                "pipeline.failed",
+                {"request": preprocessing_request, "error": error},
+                operation_id=request.request_id,
+                phase="preprocessing",
+            )
+            raise
         warnings = (*state["warnings"], *preprocessing.warnings)
         if preprocessing.status is PipelineStatus.FAILED or preprocessing.video_id is None:
             message = (

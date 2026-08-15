@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
@@ -47,6 +48,7 @@ from grounded_video_agent.infrastructure.llm import (
     LLMResponse,
     LLMUsage,
 )
+from grounded_video_agent.observability import JsonlTraceRecorder, trace_context
 from grounded_video_agent.pipelines import (
     PipelineReadiness,
     PipelineStatus,
@@ -256,7 +258,7 @@ def _decision(
 
 
 @pytest.mark.asyncio
-async def test_agent_runs_search_verify_and_authorized_delivery() -> None:
+async def test_agent_runs_search_verify_and_authorized_delivery(tmp_path: Path) -> None:
     llm = _ScriptedLLM(
         [
             _decision(
@@ -289,15 +291,17 @@ async def test_agent_runs_search_verify_and_authorized_delivery() -> None:
     agent = VideoAgent(dependencies)
 
     progress_events: list[AgentProgressEvent] = []
-    result = await agent.ainvoke(
-        AgentRequest(
-            "video.mp4",
-            "这个人进入房间前做了什么？",
-            request_id="agent-test-1",
-            evidence_clip_requested=True,
-        ),
-        progress=progress_events.append,
-    )
+    recorder = JsonlTraceRecorder.create(tmp_path)
+    with recorder, trace_context(recorder):
+        result = await agent.ainvoke(
+            AgentRequest(
+                "video.mp4",
+                "这个人进入房间前做了什么？",
+                request_id="agent-test-1",
+                evidence_clip_requested=True,
+            ),
+            progress=progress_events.append,
+        )
 
     assert result.status is AgentStatus.SUCCESS
     assert result.answer == "这个人打开门并进入房间。"
@@ -317,6 +321,27 @@ async def test_agent_runs_search_verify_and_authorized_delivery() -> None:
         event.phase is ProgressPhase.TOOL and event.status is ProgressStatus.STARTED
         for event in progress_events
     )
+    trace_events = [
+        json.loads(line) for line in recorder.path.read_text(encoding="utf-8").splitlines()
+    ]
+    event_types = {event["event_type"] for event in trace_events}
+    assert {
+        "run.started",
+        "pipeline.started",
+        "pipeline.result",
+        "graph.node.completed",
+        "agent.decision",
+        "llm.request",
+        "llm.response",
+        "tool.request",
+        "tool.response",
+        "evidence.gate",
+        "answer.draft",
+        "verification.result",
+        "delivery.result",
+        "run.completed",
+    } <= event_types
+    assert all(event["run_id"] == "agent-test-1" for event in trace_events)
 
 
 @pytest.mark.asyncio

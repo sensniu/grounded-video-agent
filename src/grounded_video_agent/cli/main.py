@@ -10,6 +10,12 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from grounded_video_agent.agent import AgentStatus
+from grounded_video_agent.observability import (
+    JsonlTraceRecorder,
+    emit_trace,
+    trace_context,
+    trace_run_context,
+)
 
 from .adapter import AgentInvoker, AnalyzeOptions, invoke_agent
 from .bootstrap import build_cli_agent
@@ -76,31 +82,61 @@ def _run_analyze(
             overwrite=namespace.overwrite,
             source_path=settings.input_root / namespace.video,
         )
-    agent = agent_factory(settings)
-    progress_renderer = CLIProgressRenderer(namespace.progress)
-    with progress_renderer:
-        result = invoke_agent(
-            agent,
-            AnalyzeOptions(
-                filename=namespace.video,
-                question=namespace.question,
-                response_language=namespace.language,
-                evidence_clip_requested=namespace.evidence_clip,
-                force_refresh=namespace.force_refresh,
-                request_id=namespace.request_id,
-                max_iterations=namespace.max_iterations,
-                max_tool_calls=namespace.max_tool_calls,
-                max_llm_calls=namespace.max_llm_calls,
-                max_total_tokens=namespace.max_total_tokens,
-            ),
-            progress=progress_renderer.emit if progress_renderer.enabled else None,
-        )
-    rendered = render_agent_result(result, namespace.format)
-    if output_path is not None:
-        _write_output(output_path, rendered)
-    else:
-        print(rendered)
-    return int(ExitCode.RUNTIME_ERROR if result.status is AgentStatus.FAILED else ExitCode.OK)
+    recorder = JsonlTraceRecorder.create(namespace.trace_dir) if namespace.trace else None
+    try:
+        with trace_context(recorder):
+            emit_trace(
+                "cli.started",
+                {
+                    "arguments": vars(namespace),
+                    "runtime": settings,
+                },
+                phase="cli",
+            )
+            agent = agent_factory(settings)
+            progress_renderer = CLIProgressRenderer(namespace.progress)
+            with progress_renderer:
+                result = invoke_agent(
+                    agent,
+                    AnalyzeOptions(
+                        filename=namespace.video,
+                        question=namespace.question,
+                        response_language=namespace.language,
+                        evidence_clip_requested=namespace.evidence_clip,
+                        force_refresh=namespace.force_refresh,
+                        request_id=namespace.request_id,
+                        max_iterations=namespace.max_iterations,
+                        max_tool_calls=namespace.max_tool_calls,
+                        max_llm_calls=namespace.max_llm_calls,
+                        max_total_tokens=namespace.max_total_tokens,
+                    ),
+                    progress=progress_renderer.emit if progress_renderer.enabled else None,
+                )
+            rendered = render_agent_result(result, namespace.format)
+            if output_path is not None:
+                _write_output(output_path, rendered)
+            else:
+                print(rendered)
+            with trace_run_context(result.request_id):
+                emit_trace(
+                    "cli.completed",
+                    {"exit_status": result.status, "result": result},
+                    operation_id=result.request_id,
+                    phase="cli",
+                )
+            return int(
+                ExitCode.RUNTIME_ERROR if result.status is AgentStatus.FAILED else ExitCode.OK
+            )
+    except BaseException as error:
+        with trace_context(recorder), trace_run_context(namespace.request_id or "unknown"):
+            emit_trace("cli.failed", {"error": error}, phase="cli")
+        raise
+    finally:
+        if recorder is not None:
+            recorder.close()
+            print(f"Trace written to {recorder.path}", file=sys.stderr)
+            if recorder.error is not None:
+                print(f"warning: trace recording was incomplete: {recorder.error}", file=sys.stderr)
 
 
 def _doctor_runner(

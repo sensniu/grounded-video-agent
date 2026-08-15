@@ -148,6 +148,95 @@ def test_progress_uses_stderr_without_corrupting_json_stdout(capsys: object) -> 
     assert "初始化" in captured.err
 
 
+def test_trace_creates_one_jsonl_file_without_corrupting_stdout(
+    tmp_path: Path,
+    capsys: object,
+) -> None:
+    trace_root = tmp_path / "traces"
+    fake_agent = _FakeAgent(_successful_result())
+
+    exit_code = run(
+        [
+            "analyze",
+            "video.mp4",
+            "-q",
+            "发生了什么？",
+            "--format",
+            "json",
+            "--trace",
+            "--trace-dir",
+            str(trace_root),
+        ],
+        environ={"DEEPSEEK_API_KEY": "test-key"},
+        agent_factory=lambda settings: fake_agent,
+    )
+
+    captured = capsys.readouterr()  # type: ignore[attr-defined]
+    assert exit_code == 0
+    assert json.loads(captured.out)["status"] == "success"
+    files = tuple(trace_root.glob("*.jsonl"))
+    assert len(files) == 1
+    events = [json.loads(line) for line in files[0].read_text(encoding="utf-8").splitlines()]
+    assert [event["event_type"] for event in events] == ["cli.started", "cli.completed"]
+    assert f"Trace written to {files[0]}" in captured.err
+
+
+def test_trace_is_disabled_by_default_even_when_directory_is_supplied(
+    tmp_path: Path,
+    capsys: object,
+) -> None:
+    trace_root = tmp_path / "traces"
+
+    exit_code = run(
+        [
+            "analyze",
+            "video.mp4",
+            "-q",
+            "发生了什么？",
+            "--trace-dir",
+            str(trace_root),
+        ],
+        environ={"DEEPSEEK_API_KEY": "test-key"},
+        agent_factory=lambda settings: _FakeAgent(_successful_result()),
+    )
+
+    assert exit_code == 0
+    assert not trace_root.exists()
+    assert "Trace written" not in capsys.readouterr().err  # type: ignore[attr-defined]
+
+
+def test_trace_is_closed_and_retained_when_agent_construction_fails(
+    tmp_path: Path,
+    capsys: object,
+) -> None:
+    trace_root = tmp_path / "traces"
+
+    def failing_factory(settings: CLIRuntimeSettings) -> AgentInvoker:
+        raise RuntimeError(f"cannot build agent for {settings.deepseek_model}")
+
+    exit_code = run(
+        [
+            "analyze",
+            "video.mp4",
+            "-q",
+            "发生了什么？",
+            "--trace",
+            "--trace-dir",
+            str(trace_root),
+        ],
+        environ={"DEEPSEEK_API_KEY": "test-key"},
+        agent_factory=failing_factory,
+    )
+
+    assert exit_code == 1
+    files = tuple(trace_root.glob("*.jsonl"))
+    assert len(files) == 1
+    events = [json.loads(line) for line in files[0].read_text(encoding="utf-8").splitlines()]
+    assert [event["event_type"] for event in events] == ["cli.started", "cli.failed"]
+    assert events[-1]["payload"]["error"]["type"] == "RuntimeError"
+    assert "Trace written" in capsys.readouterr().err  # type: ignore[attr-defined]
+
+
 def test_analyze_maps_cli_arguments_to_agent_request(capsys: object) -> None:
     fake_agent = _FakeAgent(_successful_result())
     captured_settings: list[CLIRuntimeSettings] = []

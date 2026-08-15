@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, cast
 
 import httpx
@@ -18,6 +19,7 @@ from grounded_video_agent.infrastructure.llm import (
     LLMRole,
     StructuredOutputSpec,
 )
+from grounded_video_agent.observability import JsonlTraceRecorder, trace_context
 
 API_KEY = "test-deepseek-secret"
 
@@ -269,6 +271,45 @@ async def test_deepseek_backend_rejects_truncated_and_invalid_json_outputs() -> 
     assert truncated.value.code is LLMErrorCode.OUTPUT_TRUNCATED
     assert truncated.value.retryable is False
     assert invalid_json.value.code is LLMErrorCode.INVALID_JSON
+
+
+@pytest.mark.asyncio
+async def test_deepseek_trace_preserves_raw_truncated_response_before_error(
+    tmp_path: Path,
+) -> None:
+    completion = _completion("partial", finish_reason="length")
+    choices = cast(list[dict[str, Any]], completion["choices"])
+    message = cast(dict[str, Any], choices[0]["message"])
+    message["reasoning_content"] = "provider reasoning"
+    usage = cast(dict[str, Any], completion["usage"])
+    usage["completion_tokens_details"] = {"reasoning_tokens": 4_090}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"x-request-id": "truncated-request"},
+            json=completion,
+        )
+
+    backend = DeepSeekLLMBackend(
+        _config(),
+        api_key=API_KEY,
+        transport=httpx.MockTransport(handler),
+    )
+    recorder = JsonlTraceRecorder.create(tmp_path)
+    with recorder, trace_context(recorder):
+        with pytest.raises(LLMBackendError):
+            await backend.complete(_request())
+
+    raw = recorder.path.read_text(encoding="utf-8")
+    assert API_KEY not in raw
+    events = [json.loads(line) for line in raw.splitlines()]
+    response = next(event for event in events if event["event_type"] == "provider.response")
+    payload = response["payload"]["payload"]
+    assert payload["choices"][0]["finish_reason"] == "length"
+    assert payload["choices"][0]["message"]["reasoning_content"] == "provider reasoning"
+    assert payload["usage"]["completion_tokens_details"]["reasoning_tokens"] == 4_090
+    assert any(event["event_type"] == "provider.error" for event in events)
 
 
 @pytest.mark.asyncio

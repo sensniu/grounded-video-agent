@@ -24,6 +24,7 @@ from grounded_video_agent.infrastructure.llm.contracts import (
     StructuredOutputSpec,
 )
 from grounded_video_agent.infrastructure.llm.errors import LLMBackendError, LLMErrorCode
+from grounded_video_agent.observability import emit_trace
 
 _PROVIDER = "deepseek"
 _TRANSIENT_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
@@ -101,6 +102,18 @@ class DeepSeekLLMBackend:
             transport=self._transport,
         ) as client:
             for attempt in range(1, attempts + 1):
+                emit_trace(
+                    "provider.request",
+                    {
+                        "provider": _PROVIDER,
+                        "model": self._config.model,
+                        "attempt": attempt,
+                        "endpoint": f"{self._config.base_url}/chat/completions",
+                        "payload": payload,
+                    },
+                    operation_id=request.operation_id,
+                    phase="llm_provider",
+                )
                 try:
                     response = await client.post("chat/completions", json=payload)
                     provider_request_id = _request_id(response)
@@ -108,6 +121,19 @@ class DeepSeekLLMBackend:
                         raise self._http_error(response, provider_request_id)
                     response_payload = self._decode_response(response, provider_request_id)
                     usage.add(_parse_usage(response_payload))
+                    emit_trace(
+                        "provider.response",
+                        {
+                            "provider": _PROVIDER,
+                            "attempt": attempt,
+                            "status_code": response.status_code,
+                            "provider_request_id": provider_request_id,
+                            "latency_ms": round((perf_counter() - started) * 1_000),
+                            "payload": response_payload,
+                        },
+                        operation_id=request.operation_id,
+                        phase="llm_provider",
+                    )
                     return self._parse_completion(
                         request,
                         response_payload,
@@ -136,6 +162,22 @@ class DeepSeekLLMBackend:
                     last_error.__cause__ = error
                 except LLMBackendError as error:
                     last_error = error
+                if last_error is not None:
+                    emit_trace(
+                        "provider.error",
+                        {
+                            "provider": _PROVIDER,
+                            "attempt": attempt,
+                            "code": last_error.code,
+                            "message": str(last_error),
+                            "retryable": last_error.retryable,
+                            "status_code": last_error.status_code,
+                            "provider_request_id": last_error.request_id,
+                            "suggested_action": last_error.suggested_action,
+                        },
+                        operation_id=request.operation_id,
+                        phase="llm_provider",
+                    )
                 if last_error is None or not last_error.retryable or attempt >= attempts:
                     if last_error is None:
                         raise AssertionError("DeepSeek request failed without an error")

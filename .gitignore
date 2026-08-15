@@ -10,6 +10,8 @@ __pycache__/
 # custom sources
 analyzed_video/*
 !analyzed_video/.gitkeep
+agent_traces/*
+!agent_traces/.gitkeep
 AGENTS.md
 VisdeoAgentSchedule.md
 tools_video/

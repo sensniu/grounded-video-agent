@@ -302,6 +302,21 @@ gva analyze video.mp4 -q "What happens?" --progress verbose
 gva analyze video.mp4 -q "What happens?" --progress off
 ```
 
+Complete Agent traces are opt-in. When enabled, one timestamped JSONL file is written for each
+`gva analyze` invocation:
+
+```bash
+gva analyze video.mp4 -q "What happens?" --trace
+gva analyze video.mp4 -q "What happens?" --trace --trace-dir agent_traces
+```
+
+The trace captures graph transitions, structured decisions, complete LLM prompts and responses,
+the sanitized DeepSeek provider payload, Tool arguments and results, evidence verification, and
+the final result. Truncated provider responses are recorded before an error is raised. Tracing is
+disabled by default, writes only to stderr besides the JSONL file, and never records API keys or
+authorization headers. Trace files may still contain sensitive subtitles, OCR text, visual
+descriptions, and user questions, so `agent_traces/` contents are ignored by Git.
+
 The default long-video ceilings are 50 planning iterations, 100 Tool calls, 60 reasoning-LLM
 calls, and 6,000,000 cumulative tokens. A planning completion may use up to 12,000 output tokens;
 final answer generation may use up to 64,000. Override the task-level limits with

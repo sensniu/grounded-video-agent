@@ -35,6 +35,16 @@ def build_parser() -> argparse.ArgumentParser:
         default="auto",
         help="progress display mode (default: auto)",
     )
+    analyze.add_argument(
+        "--trace",
+        action="store_true",
+        help="record the complete Agent run as one JSONL trace (default: off)",
+    )
+    analyze.add_argument(
+        "--trace-dir",
+        default="agent_traces",
+        help="directory for --trace JSONL files (default: agent_traces)",
+    )
     _add_output_arguments(analyze)
 
     doctor = subparsers.add_parser("doctor", help="check the local runtime without paid LLM calls")
